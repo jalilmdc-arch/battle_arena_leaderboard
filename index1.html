@@ -1,0 +1,486 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Classement Battle Arena</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg1: #0f1724;
+      --bg2: #18202f;
+      --accent: #2d82ff;
+      --gold: #ffd166;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: #fff;
+    }
+
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      color: var(--gold);
+    }
+
+    .meta {
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    .leaderboard, .kills-leaderboard {
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 20px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      margin-bottom: 20px;
+    }
+
+    .leaderboard h2, .kills-leaderboard h2 {
+      margin-top: 0;
+      text-align: center;
+      color: var(--gold);
+      font-size: 24px;
+    }
+
+    .leaderboard-controls {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .leaderboard-controls button {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .leaderboard-controls button.active {
+      background: linear-gradient(135deg, var(--gold), #ffcc33);
+      color: #000;
+    }
+
+    .leaderboard-controls select {
+      padding: 6px;
+      border-radius: 4px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .leaderboard-controls select option {
+      background: var(--bg2);
+      color: #fff;
+    }
+
+    .leaderboard-table, .kills-leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .leaderboard-table th, .leaderboard-table td,
+    .kills-leaderboard-table th, .kills-leaderboard-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .leaderboard-table th, .kills-leaderboard-table th {
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--gold);
+    }
+
+    .leaderboard-table tr:hover, .kills-leaderboard-table tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    #countIncluded, #killsCountIncluded {
+      font-weight: bold;
+      color: var(--gold);
+    }
+
+    input[type="text"] {
+      padding: 6px;
+      border-radius: 4px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      width: 200px;
+    }
+
+    input[type="text"]::placeholder {
+      color: #9aa4b2;
+    }
+
+    @media (max-width: 720px) {
+      .leaderboard-table, .kills-leaderboard-table {
+        font-size: 12px;
+      }
+
+      .leaderboard-table th, .leaderboard-table td,
+      .kills-leaderboard-table th, .kills-leaderboard-table td {
+        padding: 6px;
+      }
+
+      input[type="text"], select {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>⚔️ Classement Battle Arena</h1>
+      <div class="meta">Mis à jour le: <span id="updateDate"></span></div>
+    </header>
+
+    <!-- Classement Victoires -->
+    <div class="leaderboard">
+      <h2>Classement Victoires</h2>
+      <div class="leaderboard-controls">
+        <div>
+          <button id="allTimeBtn" class="active">Tous les temps</button>
+          <button id="last30Btn">30 derniers jours</button>
+          <button id="last7Btn">7 derniers jours</button>
+        </div>
+        <input type="text" id="searchPlayer" placeholder="Rechercher un joueur ou combat...">
+      </div>
+      <div class="meta">Affichage: <span id="countIncluded">0</span> résultats</div>
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Nom du Combat</th>
+            <th>Vainqueur</th>
+            <th>Combattants</th>
+            <th>Durée</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Classement Kills -->
+    <div class="kills-leaderboard">
+      <h2>Classement Kills</h2>
+      <div class="leaderboard-controls">
+        <div>
+          <button id="killsAllTimeBtn" class="active">Tous les temps</button>
+          <button id="killsLast30Btn">30 derniers jours</button>
+          <button id="killsLast7Btn">7 derniers jours</button>
+        </div>
+        <div>
+          <select id="battleSelect">
+            <option value="all">Tous les combats</option>
+          </select>
+          <input type="text" id="killsSearchPlayer" placeholder="Rechercher un joueur...">
+        </div>
+      </div>
+      <div class="meta">Affichage: <span id="killsCountIncluded">0</span> résultats</div>
+      <table class="kills-leaderboard-table">
+        <thead>
+          <tr>
+            <th>Joueur</th>
+            <th>Kills Totaux</th>
+          </tr>
+        </thead>
+        <tbody id="killsLeaderboardBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    /* DOM */
+    const updateDate = document.getElementById('updateDate');
+    const leaderboardBody = document.getElementById('leaderboardBody');
+    const killsLeaderboardBody = document.getElementById('killsLeaderboardBody');
+    const searchPlayerInput = document.getElementById('searchPlayer');
+    const killsSearchPlayerInput = document.getElementById('killsSearchPlayer');
+    const allTimeBtn = document.getElementById('allTimeBtn');
+    const last30Btn = document.getElementById('last30Btn');
+    const last7Btn = document.getElementById('last7Btn');
+    const killsAllTimeBtn = document.getElementById('killsAllTimeBtn');
+    const killsLast30Btn = document.getElementById('killsLast30Btn');
+    const killsLast7Btn = document.getElementById('killsLast7Btn');
+    const battleSelect = document.getElementById('battleSelect');
+    const countIncludedSpan = document.getElementById('countIncluded');
+    const killsCountIncludedSpan = document.getElementById('killsCountIncluded');
+
+    let leaderboardData = JSON.parse(localStorage.getItem('arenaLeaderboard')) || [];
+    let killsData = JSON.parse(localStorage.getItem('arenaKillsData')) || {};
+    let currentFilter = 'all';
+    let currentKillsFilter = 'all';
+    let selectedBattleId = 'all';
+
+    /* Utils */
+    function formatDate(date) {
+      return date.toISOString().split('T')[0];
+    }
+
+    /* Populate battle selection dropdown */
+    function populateBattleSelect() {
+      battleSelect.innerHTML = '<option value="all">Tous les combats</option>';
+      leaderboardData.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = `${item.battleName} (${formatDate(new Date(item.date))})`;
+        battleSelect.appendChild(option);
+      });
+    }
+
+    /* Afficher la date de mise à jour */
+    updateDate.textContent = formatDate(new Date());
+
+    /* Gestion du classement victoires */
+    function displayLeaderboard(filter = 'all', searchTerm = '') {
+      let filteredData = leaderboardData;
+
+      const now = new Date();
+      if (filter === 'last30') {
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        filteredData = leaderboardData.filter(item => new Date(item.date) >= thirtyDaysAgo);
+      } else if (filter === 'last7') {
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        filteredData = leaderboardData.filter(item => new Date(item.date) >= sevenDaysAgo);
+      }
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredData = filteredData.filter(item =>
+          item.winner.toLowerCase().includes(term) || item.battleName.toLowerCase().includes(term)
+        );
+      }
+
+      countIncludedSpan.textContent = filteredData.length;
+
+      leaderboardBody.innerHTML = '';
+
+      if (filteredData.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="5" style="text-align:center">Aucun résultat</td>`;
+        leaderboardBody.appendChild(row);
+      } else {
+        filteredData.forEach(item => {
+          const row = document.createElement('tr');
+          const date = new Date(item.date);
+          row.innerHTML = `
+            <td>${formatDate(date)}</td>
+            <td>${item.battleName}</td>
+            <td>${item.winner}</td>
+            <td>${item.participants}</td>
+            <td>${item.duration.toFixed(1)}s</td>
+          `;
+          leaderboardBody.appendChild(row);
+        });
+      }
+
+      // Mettre à jour les boutons actifs
+      allTimeBtn.classList.toggle('active', filter === 'all');
+      last30Btn.classList.toggle('active', filter === 'last30');
+      last7Btn.classList.toggle('active', filter === 'last7');
+    }
+
+    /* Gestion du classement kills */
+    function displayKillsLeaderboard(filter = 'all', searchTerm = '', battleId = 'all') {
+      let filteredKills;
+
+      if (battleId !== 'all') {
+        // Afficher les kills pour un combat spécifique
+        const battle = leaderboardData.find(item => item.id == battleId);
+        if (battle) {
+          filteredKills = Object.entries(battle.kills)
+            .filter(([_, kills]) => kills > 0) // Exclure les joueurs avec 0 kills
+            .sort((a, b) => b[1] - a[1]);
+        } else {
+          filteredKills = [];
+        }
+      } else {
+        // Afficher les kills globaux ou filtrés par période
+        if (filter === 'all') {
+          filteredKills = Object.entries(killsData)
+            .filter(([_, kills]) => kills > 0) // Exclure les joueurs avec 0 kills
+            .sort((a, b) => b[1] - a[1]);
+        } else {
+          const now = new Date();
+          let cutoffDate;
+          if (filter === 'last30') {
+            cutoffDate = new Date(now);
+            cutoffDate.setDate(cutoffDate.getDate() - 30);
+          } else if (filter === 'last7') {
+            cutoffDate = new Date(now);
+            cutoffDate.setDate(cutoffDate.getDate() - 7);
+          }
+          const relevantBattles = leaderboardData.filter(item => new Date(item.date) >= cutoffDate);
+          const tempKills = {};
+          relevantBattles.forEach(battle => {
+            for (const [player, kills] of Object.entries(battle.kills)) {
+              if (!tempKills[player]) tempKills[player] = 0;
+              tempKills[player] += kills;
+            }
+          });
+          filteredKills = Object.entries(tempKills)
+            .filter(([_, kills]) => kills > 0) // Exclure les joueurs avec 0 kills
+            .sort((a, b) => b[1] - a[1]);
+        }
+      }
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredKills = filteredKills.filter(([player]) => player.toLowerCase().includes(term));
+      }
+
+      killsCountIncludedSpan.textContent = filteredKills.length;
+
+      killsLeaderboardBody.innerHTML = '';
+
+      if (filteredKills.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td colspan="2" style="text-align:center">Aucun résultat</td>`;
+        killsLeaderboardBody.appendChild(row);
+      } else {
+        filteredKills.forEach(([player, kills]) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${player}</td>
+            <td>${kills}</td>
+          `;
+          killsLeaderboardBody.appendChild(row);
+        });
+      }
+
+      // Mettre à jour les boutons actifs
+      killsAllTimeBtn.classList.toggle('active', filter === 'all');
+      killsLast30Btn.classList.toggle('active', filter === 'last30');
+      killsLast7Btn.classList.toggle('active', filter === 'last7');
+    }
+
+    /* Événements */
+    allTimeBtn.addEventListener('click', () => {
+      currentFilter = 'all';
+      displayLeaderboard(currentFilter, searchPlayerInput.value);
+    });
+
+    last30Btn.addEventListener('click', () => {
+      currentFilter = 'last30';
+      displayLeaderboard(currentFilter, searchPlayerInput.value);
+    });
+
+    last7Btn.addEventListener('click', () => {
+      currentFilter = 'last7';
+      displayLeaderboard(currentFilter, searchPlayerInput.value);
+    });
+
+    killsAllTimeBtn.addEventListener('click', () => {
+      currentKillsFilter = 'all';
+      displayKillsLeaderboard(currentKillsFilter, killsSearchPlayerInput.value, selectedBattleId);
+    });
+
+    killsLast30Btn.addEventListener('click', () => {
+      currentKillsFilter = 'last30';
+      displayKillsLeaderboard(currentKillsFilter, killsSearchPlayerInput.value, selectedBattleId);
+    });
+
+    killsLast7Btn.addEventListener('click', () => {
+      currentKillsFilter = 'last7';
+      displayKillsLeaderboard(currentKillsFilter, killsSearchPlayerInput.value, selectedBattleId);
+    });
+
+    searchPlayerInput.addEventListener('input', () => {
+      displayLeaderboard(currentFilter, searchPlayerInput.value);
+    });
+
+    killsSearchPlayerInput.addEventListener('input', () => {
+      displayKillsLeaderboard(currentKillsFilter, killsSearchPlayerInput.value, selectedBattleId);
+    });
+
+    battleSelect.addEventListener('change', () => {
+      selectedBattleId = battleSelect.value;
+      displayKillsLeaderboard(currentKillsFilter, killsSearchPlayerInput.value, selectedBattleId);
+    });
+
+    /* Init */
+    function init() {
+      populateBattleSelect();
+      displayLeaderboard(currentFilter);
+      displayKillsLeaderboard(currentKillsFilter);
+    }
+    init();
+  </script>
+</body>
+</html>
